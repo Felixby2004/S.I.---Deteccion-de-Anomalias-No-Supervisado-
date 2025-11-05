@@ -197,7 +197,7 @@ ax_svm.legend()
 st.pyplot(fig_svm)
 
 # Learning para One-Class SVM
-st.markdown('<p><br><b>Learning Curve (One-Class SVM)** — variando tamaño de entrenamiento (muestra) y evaluando en test</b></p>', unsafe_allow_html=True)
+st.markdown('<p><br><b>Learning Curve (One-Class SVM) — variando tamaño de entrenamiento (muestra) y evaluando en test</b></p>', unsafe_allow_html=True)
 svm_tprs = []
 svm_fprs = []
 for frac in train_fracs:
@@ -324,3 +324,4 @@ st.markdown("""
 - **Falso Negativo:** Alto costo como pérdidas financieras, pérdida de reputación.
 - **Falso Positivo:** Transacción legítima marcada como fraude puede generar investigaciones fiscales, potencial pérdida de confianza.
 """)
+
