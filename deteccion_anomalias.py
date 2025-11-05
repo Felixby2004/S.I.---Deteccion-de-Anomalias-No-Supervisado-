@@ -11,6 +11,53 @@ from sklearn.svm import OneClassSVM
 from sklearn.metrics import confusion_matrix, recall_score, roc_auc_score, precision_recall_curve, auc, roc_curve
 import matplotlib.pyplot as plt
 
+st.markdown("""
+<style>
+.stApp {
+    background-color: #f9fafc;
+}
+            
+h1, h2, h3, h4 {
+    color: #1f2937;
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: 700;
+}
+
+.stMarkdown h2 {
+    color: #111827;
+    border-left: 5px solid #3b82f6;
+    padding-left: 10px;
+}
+
+.dataframe tbody tr:nth-child(even) {
+    background-color: #f3f4f6 !important;
+}
+            
+.dataframe thead {
+    background-color: #1e40af !important;
+    color: white !important;
+}
+
+.metric-container {
+    background-color: white;
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+.css-eh5xgm {
+    background-color: #2563eb !important;
+    color: white !important;
+    border-radius: 8px !important;
+}
+            
+.css-eh5xgm:hover {
+    background-color: #1d4ed8 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 st.set_page_config(page_title="Grupo 7 - Detección de Anomalías")
 st.title("Detección de Anomalías (No Supervisado)")
@@ -28,6 +75,7 @@ max_rows = len(df)
 rows = st.slider("Cantidad de registros a analizar:", min_value=5000, max_value=max_rows, step=500)
 df = df.iloc[:rows].copy()
 
+
 # Selección de columnas útiles
 cat_cols = ["type"]
 num_cols = ["step","amount","oldbalanceOrg","newbalanceOrig","oldbalanceDest","newbalanceDest"]
@@ -42,7 +90,6 @@ st.markdown('<p>Distribución de "isFraud" (Normal = 0, Fraude = 1):</p>', unsaf
 st.write(df['isFraud'].value_counts().to_frame("count"))
 pct_fraud = 100 * df['isFraud'].mean()
 st.markdown(f'<p>Porcentaje de fraude: {pct_fraud:.2f} %</p>', unsafe_allow_html=True)
-st.write("---")
 
 # Imputación
 num_imputer = SimpleImputer(strategy='mean')
@@ -52,6 +99,7 @@ df[cat_cols] = cat_imputer.fit_transform(df[cat_cols])
 
 # One-Hot Encoding + ColumnTransformer
 ct = ColumnTransformer(transformers=[('one_hot', OneHotEncoder(drop='first'), cat_cols)], remainder='passthrough')
+
 X = np.array(ct.fit_transform(df[cat_cols + num_cols]), dtype=np.float64)
 y = df['isFraud'].values
 
@@ -68,17 +116,37 @@ pca.fit(X_train)
 Xpca_test = pca.transform(X_test)
 
 
+# Tabla de definición de métricas
+st.write("---")
+st.subheader("📘 Significado de TP, FP, TN y FN")
+
+metrics_info = pd.DataFrame({
+    "Sigla": ["TP", "FP", "TN", "FN"],
+    "Nombre": ["Verdadero Positivo", "Falso Positivo", "Verdadero Negativo", "Falso Negativo"],
+    "Descripción": [
+        "El modelo detecta una transacción como fraude y realmente era fraude.",
+        "El modelo detecta una transacción como fraude pero era legítima.",
+        "El modelo detecta una transacción como normal y era normal.",
+        "El modelo clasifica como normal una transacción fraudulenta (error más grave)."
+    ]
+})
+
+st.dataframe(metrics_info)
+
+st.write("---")
 run = st.button("🚀 Ejecutar detección y evaluación")
 if not run:
     st.stop()
 
 # Función helper para métricas
-def eval_and_metrics(y_true, y_pred, scores):
-    cm = confusion_matrix(y_true, y_pred)
+def eval_and_metrics(y_true, y_pred, scores):       #valores reales, predicción de modelo, puntaje o probabilidad de decisión
+    cm = confusion_matrix(y_true, y_pred)           #Genera la matriz de confusión, que resume aciertos y errores
+    
     if cm.size == 4:
-        tn, fp, fn, tp = cm.ravel()
+        tn, fp, fn, tp = cm.ravel()                 #TP (Verdadero Positivo), TN (Verdadero Negativo), FP (Falso Positivo), FN (Falso Negativo)
     else:
         tn = fp = fn = tp = 0
+
     fpr = fp / (fp + tn + 1e-12)
     tpr = tp / (tp + fn + 1e-12)
     try:
@@ -99,9 +167,9 @@ def eval_and_metrics(y_true, y_pred, scores):
 st.subheader("1) Isolation Forest")
 iso = IsolationForest(contamination=0.005, random_state=42, n_jobs=-1)
 iso.fit(X_train)
-iso_pred_raw = iso.predict(X_test)
-iso_pred = (iso_pred_raw == -1).astype(int)
-iso_scores = -iso.decision_function(X_test)
+iso_pred_raw = iso.predict(X_test)                      # 1: NORMAL,   -1: ANOMALIA
+iso_pred = (iso_pred_raw == -1).astype(int)             # conversión a binarios
+iso_scores = -iso.decision_function(X_test)             # Obtener puntaje de anomalía
 res_iso = eval_and_metrics(y_test, iso_pred, iso_scores)
 
 # Métricas
@@ -111,7 +179,7 @@ col2.metric("Tasa de detección", f"{res_iso['TPR']:.6f}")
 col3.metric("ROC-AUC", f"{res_iso['ROC_AUC']:.6f}")
 col4.metric("PR-AUC", f"{res_iso['PR_AUC']:.6f}")
 
-# PCA scatter
+# Grafico PCA 2D
 fig_iso, ax_iso = plt.subplots(figsize=(6,5))
 mask_iso_norm = iso_pred == 0
 ax_iso.scatter(Xpca_test[mask_iso_norm,0], Xpca_test[mask_iso_norm,1], s=8, alpha=0.6, label="Normal")
@@ -120,6 +188,30 @@ ax_iso.set_title("Isolation Forest - PCA 2D (Test set)")
 ax_iso.set_xlabel("PC1"); ax_iso.set_ylabel("PC2"); ax_iso.legend()
 st.pyplot(fig_iso)
 
+
+col1, col2 = st.columns(2)
+with col1:
+    # Curva ROC - Isolation Forest
+    fpr_if, tpr_if, _ = roc_curve(y_test, iso_scores)
+    fig_roc_if, ax_roc_if = plt.subplots()
+    ax_roc_if.plot(fpr_if, tpr_if, label=f"ROC (AUC = {res_iso['ROC_AUC']:.4f})")
+    ax_roc_if.plot([0,1], [0,1], linestyle="--")
+    ax_roc_if.set_title("Isolation Forest - ROC Curve")
+    ax_roc_if.set_xlabel("Tasa de Falsos Positivos")
+    ax_roc_if.set_ylabel("Tasa de Verdaderos Positivos")
+    ax_roc_if.legend()
+    st.pyplot(fig_roc_if)
+
+with col2:
+    # Curva Precision-Recall - Isolation Forest
+    prec_if, rec_if, _ = precision_recall_curve(y_test, iso_scores)
+    fig_pr_if, ax_pr_if = plt.subplots()
+    ax_pr_if.plot(rec_if, prec_if, label=f"PR (AUC = {res_iso['PR_AUC']:.4f})")
+    ax_pr_if.set_title("Isolation Forest - Precision-Recall Curve")
+    ax_pr_if.set_xlabel("Recall")
+    ax_pr_if.set_ylabel("Precision")
+    ax_pr_if.legend()
+    st.pyplot(fig_pr_if)
 
 
 # Learning Curve para Isolation Forest
@@ -175,7 +267,7 @@ col2.metric("Tasa de detección", f"{res_svm['TPR']:.6f}")
 col3.metric("ROC-AUC", f"{res_svm['ROC_AUC']:.6f}")
 col4.metric("PR-AUC", f"{res_svm['PR_AUC']:.6f}")
 
-# PCA scatter
+# Grafico PCA 2D
 fig_svm, ax_svm = plt.subplots(figsize=(6,5))
 mask_svm_norm = svm_pred == 0
 ax_svm.scatter(Xpca_test[mask_svm_norm,0], Xpca_test[mask_svm_norm,1], s=8, alpha=0.6, label="Normal")
@@ -183,6 +275,30 @@ ax_svm.scatter(Xpca_test[~mask_svm_norm,0], Xpca_test[~mask_svm_norm,1], s=20, a
 ax_svm.set_title("One-Class SVM - PCA 2D (Test set)")
 ax_svm.set_xlabel("PC1"); ax_svm.set_ylabel("PC2"); ax_svm.legend()
 st.pyplot(fig_svm)
+
+col1, col2 = st.columns(2)
+with col1:
+    # Curva ROC - One-Class SVM
+    fpr_svm, tpr_svm, _ = roc_curve(y_test, svm_scores)
+    fig_roc_svm, ax_roc_svm = plt.subplots()
+    ax_roc_svm.plot(fpr_svm, tpr_svm, label=f"ROC (AUC = {res_svm['ROC_AUC']:.4f})")
+    ax_roc_svm.plot([0,1], [0,1], linestyle="--")
+    ax_roc_svm.set_title("One-Class SVM - ROC Curve")
+    ax_roc_svm.set_xlabel("Tasa de Falsos Positivos")
+    ax_roc_svm.set_ylabel("Tasa de Verdaderos Positivos")
+    ax_roc_svm.legend()
+    st.pyplot(fig_roc_svm)
+
+with col2:
+    # Curva Precision-Recall - One-Class SVM
+    prec_svm, rec_svm, _ = precision_recall_curve(y_test, svm_scores)
+    fig_pr_svm, ax_pr_svm = plt.subplots()
+    ax_pr_svm.plot(rec_svm, prec_svm, label=f"PR (AUC = {res_svm['PR_AUC']:.4f})")
+    ax_pr_svm.set_title("One-Class SVM - Precision-Recall Curve")
+    ax_pr_svm.set_xlabel("Recall")
+    ax_pr_svm.set_ylabel("Precision")
+    ax_pr_svm.legend()
+    st.pyplot(fig_pr_svm)
 
 
 # Learning Curve para One-Class SVM
@@ -222,12 +338,13 @@ st.pyplot(fig_l_svm)
 
 # Mostrar anomalías
 st.write("---")
+
 anom_if = df.iloc[np.where(iso_pred==1)[0]]
-st.subheader("🔴 Anomalías detectadas por Isolation Forest")
+st.subheader("🔴 Anomalías detectadas - IF")
 st.dataframe(anom_if)
 
 anom_svm = df.iloc[np.where(svm_pred==1)[0]]
-st.subheader("🔴 Anomalías detectadas por One-Class SVM")
+st.subheader("🔴 Anomalías detectadas - OCSVM")
 st.dataframe(anom_svm)
 
 
@@ -275,6 +392,3 @@ st.markdown("""
 - **Falso Negativo:** Alto costo como pérdidas financieras, pérdida de reputación.
 - **Falso Positivo:** Transacción legítima marcada como fraude puede generar investigaciones fiscales, potencial pérdida de confianza.
 """)
-
-
-
