@@ -10,4 +10,4 @@ Detección de Anomalías en Machine Learning App con Streamlit
 
 🚀 Opción 2. Link directo en internet
 * Haga click en el link de la aplicacion subida en streamlit cloud.
-* Link: 
+* Link: https://sidetec-anomalias.streamlit.app/
