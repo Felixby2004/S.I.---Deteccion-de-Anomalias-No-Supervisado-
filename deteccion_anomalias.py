@@ -51,9 +51,8 @@ cat_imputer = SimpleImputer(strategy='most_frequent')
 df[cat_cols] = cat_imputer.fit_transform(df[cat_cols])
 
 # One-Hot Encoding + ColumnTransformer
-ct = ColumnTransformer(transformers=[('one_hot', OneHotEncoder(drop='first'), cat_cols)],
-                       remainder='passthrough')
-X = np.array(ct.fit_transform(df[cat_cols + num_cols]), dtype=np.float64)
+ct = ColumnTransformer(transformers=[('one_hot', OneHotEncoder)], remainder='passthrough')
+X = np.array(ct.fit_transform(df[num_cols]), dtype=np.float64)
 y = df['isFraud'].values
 
 # Estandarización o Normalización
@@ -276,4 +275,5 @@ st.markdown("""
 - **Falso Negativo:** Alto costo como pérdidas financieras, pérdida de reputación.
 - **Falso Positivo:** Transacción legítima marcada como fraude puede generar investigaciones fiscales, potencial pérdida de confianza.
 """)
+
 
